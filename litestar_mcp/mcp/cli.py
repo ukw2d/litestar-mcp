@@ -64,8 +64,8 @@ def get_mcp_plugin(app: "Litestar") -> "LitestarMCP":
     raise RuntimeError(msg)  # pragma: no cover
 
 
-class ToolExecutor(click.MultiCommand):  # type: ignore[valid-type,misc,unused-ignore]  # pragma: no cover
-    """A dynamic click MultiCommand to run discovered MCP tools."""
+class ToolExecutor(click.Group):  # type: ignore[valid-type,misc,unused-ignore]  # pragma: no cover
+    """A dynamic click Group to run discovered MCP tools."""
 
     def __init__(self, **attrs: "Any") -> "None":  # pragma: no cover
         """Initialize the tool executor."""

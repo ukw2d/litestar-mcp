@@ -1,6 +1,7 @@
 """Tests for the CLI module."""
 
 import asyncio
+import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -10,11 +11,45 @@ from unittest.mock import Mock
 import pytest
 from click import Context, Group
 from click.testing import CliRunner
-from litestar import Litestar
+from litestar import Litestar, get
 from litestar.cli._utils import LitestarEnv
 
 from litestar_mcp import LitestarMCP, MCPConfig
 from litestar_mcp.mcp.cli import mcp_group
+
+
+def test_cli_import_uses_supported_click_api() -> None:
+    result = subprocess.run(
+        [sys.executable, "-W", "error::DeprecationWarning:rich_click", "-c", "import litestar_mcp.mcp.cli"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_run_discovers_and_dispatches_tool(cli_runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+    @get("/echo", sync_to_thread=False, mcp_tool="echo")
+    def echo(name: str) -> str:
+        return name
+
+    app = Litestar(route_handlers=[echo], plugins=[LitestarMCP()])
+
+    async def execute(handler: Any, application: Litestar, arguments: dict[str, Any]) -> dict[str, Any]:
+        assert handler is echo
+        assert application is app
+        assert arguments == {"name": "Ada"}
+        return arguments
+
+    monkeypatch.setattr("litestar_mcp.mcp.cli.execute_tool", execute)
+    env = LitestarEnv(app_path="tests.unit.test_cli:app", app=app, cwd=Path.cwd())
+    help_result = cli_runner.invoke(mcp_group, ["run", "--help"], obj=env)
+    assert help_result.exit_code == 0, help_result.output
+    assert "echo" in help_result.output
+
+    result = cli_runner.invoke(mcp_group, ["run", "echo", "--name", "Ada"], obj=env)
+    assert result.exit_code == 0, result.output
+    assert "Ada" in result.output
 
 
 @pytest.fixture(scope="session")
